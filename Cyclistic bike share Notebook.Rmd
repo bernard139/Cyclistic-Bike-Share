@@ -1,0 +1,366 @@
+---
+title: 'Cyclistic: Google Data Analytics Capstone Project'
+author: "Bernard Bamidele Aghedo"
+output:
+  pdf_document:
+    fig_caption: yes
+  html_notebook: default
+  word_document: default
+---
+
+#### Background
+
+I'll be performing the role of a junior data analyst working in the marketing analyst team at Cyclistic, a bike share company in Chicago. The director of marketing believes the company's future success depends on maximizing the number of annual memberships. Therefore, your team wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, your team will design a new marketing strategy to convert casual riders into annual members. But first, Cyclistic executives must approve your recommendations, so they must be backed up with compelling data insights and professional data visualizations.
+
+##### Cyclistic
+
+A bike-share program that features more than 5,800 bicycles and 600 docking stations. Cyclistic sets itself apart by also offering reclining bikes, hand tricycles, and cargo bikes, making bike-share more inclusive to people with disabilities and riders who can't use a standard two-wheeled bike. The majority of riders opt for traditional bikes; about 8% of riders use the assistive options. Cyclistic users are more likely to ride for leisure, but about 30% use them to commute to work each day.
+
+####### Loading the available dataset into R
+
+```{r}
+# Loading packages
+
+library("tidyverse")
+library("janitor")
+library("lubridate")
+library("ggplot2")
+```
+
+```{r}
+# Set working directory
+setwd("~/Desktop/Cyclistic Case Study")
+```
+
+```{r}
+# Reading .csv divvy-tripdata files
+
+df1 <- read.csv("202004-divvy-tripdata.csv")
+df2 <- read.csv("202005-divvy-tripdata.csv")
+df3 <- read.csv("202006-divvy-tripdata.csv")
+df4 <- read.csv("202007-divvy-tripdata.csv")
+df5 <- read.csv("202008-divvy-tripdata.csv")
+df6 <- read.csv("202009-divvy-tripdata.csv")
+df7 <- read.csv("202010-divvy-tripdata.csv")
+df8 <- read.csv("202011-divvy-tripdata.csv")
+df9 <- read.csv("202012-divvy-tripdata.csv")
+df10 <- read.csv("202101-divvy-tripdata.csv")
+df11 <- read.csv("202103-divvy-tripdata.csv")
+df12 <- read.csv("202104-divvy-tripdata.csv")
+df13 <- read.csv("202105-divvy-tripdata.csv")
+df14 <- read.csv("202106-divvy-tripdata.csv")
+df15 <- read.csv("202107-divvy-tripdata.csv")
+df16 <- read.csv("202108-divvy-tripdata.csv")
+df17 <- read.csv("202109-divvy-tripdata.csv")
+df18 <- read.csv("202110-divvy-tripdata.csv")
+df19 <- read.csv("202111-divvy-tripdata.csv")
+df20 <- read.csv("202112-divvy-tripdata.csv")
+df21 <- read.csv("202203-divvy-tripdata.csv")
+df22 <- read.csv("202201-divvy-tripdata.csv")
+df23 <- read.csv("202202-divvy-tripdata.csv")
+df24 <- read.csv("202204-divvy-tripdata.csv")
+df25 <- read.csv("202205-divvy-tripdata.csv")
+df26 <- read.csv("202206-divvy-tripdata.csv")
+
+```
+
+```{r}
+# binding all csv files
+
+bike_rides <- rbind(df1,df2,df3,df4,df5,df6,df7,
+                    df8,df9,df10,df11,df12,df13,
+                    df14,df15,df16,df17,df18,df19,
+                    df20,df21,df22,df23,df24,df25,df26)
+```
+
+```{r}
+# Cleaning the data: removing empty columns and changing data types
+bike_rides <- remove_empty(bike_rides, which = c("cols","rows"))
+
+unique(bike_rides$member_casual)
+
+unique(bike_rides$rideable_type)
+
+bike_rides$start_station_id <- as.integer(bike_rides$start_station_id)
+
+bike_rides$end_station_id <- as.integer(bike_rides$end_station_id)
+```
+
+```{r}
+# Parsing date/time 
+
+bike_rides$started_at <- ymd_hms(bike_rides$started_at)
+
+bike_rides$ended_at <- ymd_hms(bike_rides$ended_at)
+
+bike_rides$start_hour <- hour(bike_rides$started_at)
+
+bike_rides$end_hour <- hour(bike_rides$ended_at)
+
+bike_rides$trip_date <- as.Date(bike_rides$started_at)
+bike_rides$trip_month <- format(as.Date(bike_rides$trip_date), "%B")
+bike_rides$trip_day <- format(as.Date(bike_rides$trip_date), "%d")
+bike_rides$trip_year <- format(as.Date(bike_rides$trip_date), "%Y")
+bike_rides$trip_weekday <- weekdays(bike_rides$trip_date)
+```
+
+```{r}
+# Checking for test stations
+
+unique(bike_rides$start_station_name[grep("test", bike_rides$start_station_name)])
+```
+
+```{r}
+# Filtering test stations
+
+bike_rides <- (filter(bike_rides, !(start_station_name == "hubbard_test_lws" | 
+                                      start_station_name == "")))
+```
+
+```{r}
+# To analyze TOP stations
+
+all_trip_stations <- bike_rides[,c(5,9,10)]
+
+all_trip_stations <- all_trip_stations[!duplicated(all_trip_stations$start_station_name),]
+
+```
+
+```{r}
+# Total number of trip stations
+
+unique(all_trip_stations)
+
+NROW(unique(all_trip_stations))
+```
+
+```{r}
+# Calculating Ride Lengths in Minutes
+
+bike_rides$ride_length <- difftime(bike_rides$ended_at, bike_rides$started_at)
+bike_rides$ride_length <- bike_rides$ride_length/60
+bike_rides$ride_length <- round(bike_rides$ride_length, 2)
+
+```
+
+```{r}
+# Remove observations where ride length is below 0
+
+bike_rides <- filter(bike_rides, ride_length > 0)
+```
+
+```{r}
+# Compare members and casual users
+
+bike_rides %>% 
+  group_by(member_casual) %>% 
+  summarise(avg_ride_length = mean(ride_length), median_ride_length = median(ride_length), 
+            max_ride_length = max(ride_length), min_ride_length = min(ride_length))
+```
+
+```{r}
+# Order the days of the week. Will also order the month
+
+bike_rides$trip_weekday <- ordered(bike_rides$trip_weekday, 
+        levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", 
+                 "Friday", "Saturday"))
+
+bike_rides$trip_month <- ordered(bike_rides$trip_month, 
+        levels=c("January", "February", "March", "April", "May", 
+                 "June", "July", "August", "September", "October", 
+                 "November", "December"))
+```
+
+```{r}
+# Avg ride time by each day for members & casual users
+
+casual_member_avg_ride <- aggregate(bike_rides$ride_length ~ 
+                          bike_rides$member_casual + bike_rides$trip_weekday,
+                                                 FUN = mean)
+```
+
+```{r}
+# Relationship between Rider type and No. of rides in each day of the week
+
+bike_rides %>% 
+  group_by(member_casual, trip_weekday) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, trip_weekday) %>%
+ ggplot(aes(x = trip_weekday, y = number_of_rides, fill = member_casual)) +
+  geom_bar(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Daily Rides", 
+            x = "Week Day", y = "Number of Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+```
+
+```{r}
+# Relationship between Rider type and No of rides monthly
+
+bike_rides %>% 
+  group_by(member_casual, trip_month) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>% 
+  arrange(member_casual, trip_month)	%>% 
+  ggplot(aes(x = trip_month, y = number_of_rides, fill = member_casual)) +
+  geom_col(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Ride by Month", x = "Month", y = "Number of Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+
+```
+
+```{r}
+# Analyze Casual Bike type and rides monthly & daily
+
+casual_bike_riders <-  filter(bike_rides, member_casual == "casual")
+
+unique(casual_bike_riders$rideable_type)
+```
+
+```{r}
+## Casual rides and bike type relationship Monthly
+
+casual_bike_riders %>% 
+  group_by(rideable_type, trip_month) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>% 		
+  arrange(rideable_type, trip_month)	%>% 
+  ggplot(aes(x = trip_month, y = number_of_rides, fill = rideable_type)) +
+  geom_col(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Casual Rides by Month", x = "Month", y = "Number of Casual Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+## Casual rides and bike type relationship Daily
+
+casual_bike_riders %>% 
+  group_by(rideable_type, trip_weekday) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>% 		
+  arrange(rideable_type, trip_weekday)	%>% 
+  ggplot(aes(x = trip_weekday, y = number_of_rides, fill = rideable_type)) +
+  geom_col(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Casual Rides by Weekday", x = "Weekday", y = "Number of Casual Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+# Analyze Member Bike type and rides monthly & daily
+
+member_bike_riders <- filter(bike_rides, member_casual == "member")
+
+```
+
+```{r}
+## Member rides and bike type relationship Monthly
+
+member_bike_riders %>% 
+  group_by(rideable_type, trip_month) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>% 		
+  arrange(rideable_type, trip_month)	%>% 
+  ggplot(aes(x = trip_month, y = number_of_rides, fill = rideable_type)) +
+  geom_col(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Member Rides by Month", x = "Month", y = "Number of Member Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+## Member rides and bike types relationship Daily
+
+member_bike_riders %>% 
+  group_by(rideable_type, trip_weekday) %>% 
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>% 		
+  arrange(rideable_type, trip_weekday)	%>% 
+  ggplot(aes(x = trip_weekday, y = number_of_rides, fill = rideable_type)) +
+  geom_col(position = "dodge", stat = 'identity') + 
+  labs(title="Total Number of Member Rides by Weekday", x = "Weekday", y = "Number of Member Rides") + 
+  theme(axis.text.x = element_text(angle = 60, hjust = 1))
+```
+
+```{r}
+# Popular Routes taken by casual riders
+
+casual_bike_riders <- casual_bike_riders %>%
+  mutate(route = paste(start_station_name, "To", sep=" "))
+
+casual_bike_riders <- casual_bike_riders %>%       
+  mutate(route = paste(route, end_station_name, sep =" "))
+
+casual_pop_routes <-  casual_bike_riders %>% 
+  group_by(route) %>%
+  summarise(number_of_rides  = n(), average_duration_minutes = mean(ride_length)) %>% 
+  arrange(route, number_of_rides, average_duration_minutes)
+```
+
+```{r}
+## Calculating Top 10 stations for casual riders
+
+top10_casual_pop_routes <- head(arrange(casual_pop_routes, desc(number_of_rides)), 10)
+
+top10_casual_pop_routes <- top10_casual_pop_routes %>%
+  separate(route, c("start_station_name", "end_station_name"), sep = " To ")
+
+unique(top10_casual_pop_routes)
+```
+
+```{r}
+# Merging the Casual popular routes with all_trips_stations for more geo location details
+
+top10_casual_pop_routes_start <- top10_casual_pop_routes[c(1,3,4)]
+
+top10_stations_casual <- merge(top10_casual_pop_routes_start, all_trip_stations)
+
+head(top10_stations_casual, 10)
+```
+
+```{r}
+# Top 10 popular Routes taken by Member riders
+
+member_bike_riders <- member_bike_riders %>%
+  mutate(route = paste(start_station_name, "To", sep=" "))
+
+member_bike_riders <- member_bike_riders %>%       
+  mutate(route = paste(route, end_station_name, sep =" "))
+
+member_pop_routes <-  member_bike_riders %>% 
+  group_by(route) %>%
+  summarise(number_of_rides  = n(), average_duration_minutes = mean(ride_length)) %>% 
+  arrange(route, number_of_rides, average_duration_minutes)
+```
+
+```{r}
+# Calculating Top 10 stations for member riders
+
+top10_member_pop_routes <- head(arrange(member_pop_routes, desc(number_of_rides)), 10)
+
+top10_member_pop_routes <- top10_member_pop_routes %>%
+  separate(route, c("start_station_name", "end_station_name"), sep = " To ")
+
+unique(top10_member_pop_routes)
+
+```
+
+```{r}
+#  Merging the popular routes with all_trips_stations for more geo location details
+
+top10_member_pop_routes_start <- top10_member_pop_routes[c(1,3,4)]
+
+top10_stations_member <- merge(top10_member_pop_routes_start, all_trip_stations)
+head(top10_stations_member, 10)
+
+```
+
+```{r}
+# Export "top10_stations_casual" and "top10_stations_member" into Tableau for visualization
+
+write.csv(top10_stations_casual, "top10_stations_casual.csv")
+write.csv(top10_stations_member, "top10_stations_member.csv")
+```
+
+#### link to Dashboard Tableau Viz: Top 10 casual and member stations
+
+###### <https://public.tableau.com/views/DashboardCyclisticBikeShare-Top10Member_CasualStation/CyclisticBikeShare-Top10Member_CasualStations>
+
+#### Trends and Correlations
+
+Classic bike is being used the most by both casual and member riders with most rides at the first half of the year Docked bike is the next used bikes to classic bike
+
+Member riders have more rides during the week which is between Mondays to Fridays While Casual have more rides during weekends which is Saturdays and Sundays
